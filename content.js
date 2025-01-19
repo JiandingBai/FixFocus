@@ -1,55 +1,48 @@
-const script = document.createElement("script");
-script.src = "https://cdn.jsdelivr.net/npm/webgazer";
-document.head.appendChild(script);
+document.addEventListener("DOMContentLoaded", () => {
+  async function getActiveTabId() {
+    return new Promise((resolve, reject) => {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs.length === 0) {
+          reject("No active tab found.");
+        } else {
+          resolve(tabs[0].id);
+        }
+      });
+    });
+  }
 
-script.onload = () => {
-  console.log("WebGazer.js has loaded successfully.");
-  webgazer.setGazeListener((data, timestamp) => {
-    console.log("Gaze Data:", data);
-  }).begin();
-};
-
-script.onerror = () => {
-  console.error("Failed to load WebGazer.js. Check your internet connection or URL.");
-};
-
-let gazeOffScreen = false;
-
-window.onload = async () => {
-  // Wait for WebGazer to load
-  await webgazer.setGazeListener((data, timestamp) => {
-    if (!data) return;
-
-    // Define on-screen bounds (adjust as needed)
-    const screenWidth = window.innerWidth;
-    const screenHeight = window.innerHeight;
-    const x = data.x; // Gaze X coordinate
-    const y = data.y; // Gaze Y coordinate
-
-    // Check if gaze is within bounds
-    if (x < 0 || x > screenWidth || y < 0 || y > screenHeight) {
-      gazeOffScreen = true;
-      pauseVideo();
-    } else {
-      gazeOffScreen = false;
-      resumeVideo();
+  document.getElementById("start-tracking").addEventListener("click", async () => {
+    try {
+      const tabId = await getActiveTabId();
+      if (!tabId || isNaN(tabId)) throw new Error("Invalid tabId");
+      
+      chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        files: ["content.js"]
+      });
+      document.getElementById("status").textContent = "Status: Tracking...";
+    } catch (error) {
+      console.error("Error starting tracking:", error);
     }
-  }).begin();
-};
-
-// Pause all videos
-function pauseVideo() {
-  const videos = document.querySelectorAll("video");
-  videos.forEach(video => {
-    if (!video.paused) video.pause();
   });
-}
 
-// Resume all videos
-function resumeVideo() {
-  const videos = document.querySelectorAll("video");
-  videos.forEach(video => {
-    if (video.paused && !gazeOffScreen) video.play();
+  document.getElementById("stop-tracking").addEventListener("click", async () => {
+    try {
+      const tabId = await getActiveTabId();
+      if (!tabId || isNaN(tabId)) throw new Error("Invalid tabId");
+      
+      chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        func: () => {
+          if (window.webgazer) {
+            window.webgazer.end();
+            console.log("WebGazer stopped.");
+          }
+        }
+      });
+      document.getElementById("status").textContent = "Status: Not Tracking";
+    } catch (error) {
+      console.error("Error stopping tracking:", error);
+    }
   });
-}
-
+});
